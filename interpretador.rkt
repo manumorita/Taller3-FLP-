@@ -52,7 +52,7 @@
 
     ; textos
     (texto
-      (letter (arbno (or letter digit "_" ":")))
+      (letter (arbno (or letter digit "_")))
       string)
 ))
 
@@ -219,7 +219,7 @@
     (primitive-bin ("<=") primitiva-menor-igual)
 
     (primitive-bin ("!=") primitiva-diferente)
-    (primitive-bin ("==") primitiva-igual)
+    (primitive-bin ("==") primitiva-comparador-igual)
 
     ; ========================================================
     ; PRIMITIVAS UNARIAS
@@ -248,7 +248,6 @@
   (sllgen:make-string-parser
     scanner-spec
     grammar))
-```racket
 ; ============================================================
 ; AMBIENTES
 ; ============================================================
@@ -564,8 +563,8 @@
       (primitiva-diferente ()
                              (if (not (equal? arg1 arg2)) 1 0))
 
-      (primitiva-igual ()
-                        (if (equal? arg1 arg2) 1 0)))))
+      (primitiva-comparador-igual ()
+                              (if (equal? arg1 arg2) 1 0)))))
 
 ; ============================================================
 ; PRIMITIVAS UNARIAS
@@ -624,4 +623,3 @@
 
     (evaluar-programa
      (scan&parse texto))))
-
