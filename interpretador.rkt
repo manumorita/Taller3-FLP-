@@ -650,6 +650,6 @@
 ;   declarar (
 ;     @decorate = evaluar @saludar (@integrantes) finEval;
 ;   ) {
-;     evaluar @decorate ("ProfesoresFLP") finEval
+;     evaluar @decorate ("_ProfesoresFLP") finEval
 ;   }
 ; }
