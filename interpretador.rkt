@@ -320,3 +320,19 @@
     '(@a @b @c @d @e)
     '(1   2   3  "hola" "FLP")
     (ambiente-vacio)))
+
+; ============================================================
+; DATATYPE PROCVAL (CERRADURA)
+; ============================================================
+
+; Un procVal representa un procedimiento como valor de primera clase.
+; Tiene 3 campos:
+;   lista-ID  → los parámetros formales del procedimiento
+;   exp       → el cuerpo (una expresion del AST)
+;   amb       → el ambiente donde fue declarado (para closures)
+
+(define-datatype procVal procVal?
+  (cerradura
+    (lista-ID (list-of symbol?))
+    (exp expresion?)
+    (amb ambiente?)))
