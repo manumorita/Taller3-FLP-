@@ -3,11 +3,12 @@
 ; ============================================================
 ; TALLER 3 - FUNDAMENTOS DE LENGUAJES DE PROGRAMACIÓN
 ; ============================================================
+; Repositorio: https://github.com/manumorita/Taller3-FLP-.git
 ; Integrantes:
-; - Manuela Martinez Moncada
-; - Steven Aragon 2418804
-; - Gerardo Gonzales
-; - link github: https://github.com/manumorita/Taller3-FLP-.git
+; - Manuela Martínez Moncada - 2375458
+; - Steven Fernando Aragón Álvarez - 2418804
+; - Andrés Gerardo González Rosero - 2416541
+;
 ; ============================================================
 ; ESPECIFICACIÓN LÉXICA
 ; ============================================================
@@ -52,7 +53,7 @@
 
     ; textos
     (texto
-      (letter (arbno (or letter digit "_")))
+      (letter (arbno (or letter digit "_" ":")))
       string)
 ))
 
