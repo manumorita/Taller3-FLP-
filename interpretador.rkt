@@ -3,10 +3,11 @@
 ; ============================================================
 ; TALLER 3 - FUNDAMENTOS DE LENGUAJES DE PROGRAMACIÓN
 ; ============================================================
+; Repositorio: https://github.com/manumorita/Taller3-FLP-.git
 ; Integrantes:
-; - Manuela Martinez Moncada
-; - Steven Aragon 
-; - Andrés Gerardo González
+; - Manuela Martínez Moncada - 2375458
+; - Steven Fernando Aragón Álvarez - 2418804
+; - Andrés Gerardo González Rosero - 2416541
 ;
 ; ============================================================
 ; ESPECIFICACIÓN LÉXICA
@@ -52,7 +53,7 @@
 
     ; textos
     (texto
-      (letter (arbno (or letter digit "_" ":")))
+      ((or letter "_") (arbno (or letter digit "_" ":")))
       string)
 ))
 
@@ -544,7 +545,7 @@
         (cond
           ((string? val) (string-length val))
           ((list? val)   (length val))
-          (else "Error, la variable no existe")))
+          (else "Error de tipo: se esperaba un texto o lista en longitud()")))
 
       ; add1/sub1: incremento y decremento
       (primitiva-add1 () (+ val 1))
@@ -625,7 +626,7 @@
 ;
 ; 9e) decorador sin mensaje final
 ; declarar (
-;   @integrantes = procedimiento () { "Robinson_y_Sara" };
+;   @integrantes = procedimiento () { "Manuela_Steven_Andres" };
 ;   @saludar = procedimiento (@proc) {
 ;     procedimiento () { ("Hola:" concat evaluar @proc () finEval) }
 ;   };
@@ -639,16 +640,16 @@
 ;
 ; 9f) decorador con mensaje final
 ; declarar (
-;   @integrantes = procedimiento () { "Robinson_y_Sara" };
-;   @saludar = procedimiento (@proc,@mensaje) {
-;     procedimiento () {
+;   @integrantes = procedimiento () { "Manuela_Steven_Andres" };
+;   @saludar = procedimiento (@proc) {
+;     procedimiento (@mensaje) {
 ;       (("Hola:" concat evaluar @proc () finEval) concat @mensaje)
 ;     }
 ;   };
 ; ) {
 ;   declarar (
-;     @decorate = evaluar @saludar (@integrantes,"_ProfesoresFLP") finEval;
+;     @decorate = evaluar @saludar (@integrantes) finEval;
 ;   ) {
-;     evaluar @decorate () finEval
+;     evaluar @decorate ("ProfesoresFLP") finEval
 ;   }
 ; }
