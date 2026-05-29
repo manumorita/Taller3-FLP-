@@ -6,7 +6,7 @@
 ; Integrantes:
 ; - Manuela Martinez Moncada
 ; - Steven Aragon 
-; - Gerardo Gonzales
+; - Andrés Gerardo González
 ;
 ; ============================================================
 ; ESPECIFICACIÓN LÉXICA
@@ -293,7 +293,7 @@
   (lambda (id amb)
     (cases ambiente amb
       (vacio ()
-        (error 'buscar-variable "Error, la variable no existe: ~s" id))
+        "Error, la variable no existe")
       (extendido (ids vals resto)
         (let buscar-en-marco ((ids-restantes ids)
                               (vals-restantes vals))
@@ -331,11 +331,14 @@
 ;   exp       → el cuerpo (una expresion del AST)
 ;   amb       → el ambiente donde fue declarado (para closures)
 
+(define (ambiente-o-ref? v)
+  (or (ambiente? v) (vector? v)))
+
 (define-datatype procVal procVal?
   (cerradura
     (lista-ID (list-of symbol?))
-    (exp expresion?)
-    (amb ambiente?)))
+    (exp expression?)
+    (amb ambiente-o-ref?)))
 
 ; ============================================================
 ; EVALUADOR
@@ -455,8 +458,11 @@
   (lambda (proc args)
     (cases procVal proc
       (cerradura (ids cuerpo amb-declaracion)
+        (let ((amb-real (if (vector? amb-declaracion)
+                            (vector-ref amb-declaracion 0)
+                            amb-declaracion)))
         (evaluar-expresion cuerpo
-                           (extender-ambiente ids args amb-declaracion))))))
+                             (extender-ambiente ids args amb-real)))))))
 
 ; ============================================================
 ; VALOR-VERDAD?
@@ -479,15 +485,16 @@
 ; que se construye de forma diferida con letrec.
 (define extender-ambiente-recursivo
   (lambda (ids params exps amb)
-    (letrec
-      ((amb-rec
-        (extender-ambiente
-          ids
-          (map (lambda (ps cuerpo)
-                 (cerradura ps cuerpo amb-rec))
-               params
-               exps)
-          amb)))
+    (let* ((amb-ref (vector #f))
+           (amb-rec
+             (extender-ambiente
+               ids
+               (map (lambda (ps cuerpo)
+                      (cerradura ps cuerpo amb-ref))
+                    params
+                    exps)
+               amb)))
+      (vector-set! amb-ref 0 amb-rec)
       amb-rec)))
 
 ; ============================================================
@@ -537,7 +544,7 @@
         (cond
           ((string? val) (string-length val))
           ((list? val)   (length val))
-          (else (error 'longitud "Se esperaba string o lista, se recibio: ~s" val))))
+          (else "Error, la variable no existe")))
 
       ; add1/sub1: incremento y decremento
       (primitiva-add1 () (+ val 1))
@@ -562,3 +569,86 @@
 (define interprete
   (lambda (codigo)
     (evaluar-programa (scan&parse codigo))))
+
+; Alias para mantener compatibilidad con llamadas a interpretador en los tests por simple convención propia, me suena mejor)
+(define interpretador interprete)
+
+(provide (all-defined-out))
+
+; ============================================================
+; EJERCICIOS FINALES DEL TALLER (COMENTADOS)
+; ============================================================
+;
+; 9a) sumarDigitos
+; (recursivo (@sumarDigitos(@n)=
+;    Si (@n < 10) {
+;      @n
+;    } sino {
+;      ((@n ~ (piso((@n / 10)) * 10)) + evaluar @sumarDigitos(piso((@n / 10))) finEval)
+;    }
+;  ;) { evaluar @sumarDigitos(147) finEval })
+;
+; 9b) factorial
+; (recursivo (@fact(@n)=
+;    Si (@n <= 1) {
+;      1
+;    } sino {
+;      (@n * evaluar @fact((@n ~ 1)) finEval)
+;    }
+;  ;) { evaluar @fact(5) finEval })
+;
+; (recursivo (@fact(@n)=
+;    Si (@n <= 1) {
+;      1
+;    } sino {
+;      (@n * evaluar @fact((@n ~ 1)) finEval)
+;    }
+;  ;) { evaluar @fact(10) finEval })
+;
+; 9c) potencia recursiva
+; (recursivo (@potencia(@base,@exp)=
+;    Si (@exp <= 0) {
+;      1
+;    } sino {
+;      (@base * evaluar @potencia(@base,(@exp ~ 1)) finEval)
+;    }
+;  ;) { evaluar @potencia(4,2) finEval })
+;
+; 9d) suma de rango
+; (recursivo (@sumaRango(@a,@b)=
+;    Si (@a == @b) {
+;      @a
+;    } sino {
+;      (@a + evaluar @sumaRango((@a + 1),@b) finEval)
+;    }
+;  ;) { evaluar @sumaRango(2,5) finEval })
+;
+; 9e) decorador sin mensaje final
+; declarar (
+;   @integrantes = procedimiento () { "Robinson_y_Sara" };
+;   @saludar = procedimiento (@proc) {
+;     procedimiento () { ("Hola:" concat evaluar @proc () finEval) }
+;   };
+; ) {
+;   declarar (
+;     @decorate = evaluar @saludar (@integrantes) finEval;
+;   ) {
+;     evaluar @decorate () finEval
+;   }
+; }
+;
+; 9f) decorador con mensaje final
+; declarar (
+;   @integrantes = procedimiento () { "Robinson_y_Sara" };
+;   @saludar = procedimiento (@proc,@mensaje) {
+;     procedimiento () {
+;       (("Hola:" concat evaluar @proc () finEval) concat @mensaje)
+;     }
+;   };
+; ) {
+;   declarar (
+;     @decorate = evaluar @saludar (@integrantes,"_ProfesoresFLP") finEval;
+;   ) {
+;     evaluar @decorate () finEval
+;   }
+; }
