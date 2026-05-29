@@ -53,7 +53,7 @@
 
     ; textos
     (texto
-      ((or letter "_") (arbno (or letter digit "_" ":")))
+      (letter (arbno (or letter digit "_" ":")))
       string)
 ))
 
@@ -220,7 +220,7 @@
     (primitive-bin ("<=") primitiva-menor-igual)
 
     (primitive-bin ("!=") primitiva-diferente)
-    (primitive-bin ("==") primitiva-igual)
+    (primitive-bin ("==") primitiva-comparador-igual)
 
     ; ========================================================
     ; PRIMITIVAS UNARIAS
@@ -249,407 +249,378 @@
   (sllgen:make-string-parser
     scanner-spec
     grammar))
-
-
 ; ============================================================
-; DATATYPES DE AMBIENTE
+; AMBIENTES
 ; ============================================================
 
-; Un ambiente es una lista enlazada de marcos.
-; vacio       → el ambiente base (no tiene variables)
-; extendido   → un marco con una lista de ids, una lista de
-;               valores, y un puntero al ambiente anterior
+; datatype para representar ambientes
 
 (define-datatype ambiente ambiente?
+
   (vacio)
+
   (extendido
-    (ids    (list-of symbol?))   ; lista de identificadores
-    (vals   (list-of scheme-value?))  ; lista de valores asociados
-    (resto  ambiente?)))          ; ambiente anterior (encadenado)
+   (ids (list-of symbol?))
+   (vals (list-of scheme-value?))
+   (amb ambiente?))
 
-; scheme-value? acepta cualquier valor de Racket/EOPL
-(define scheme-value? (lambda (v) #t))
+  (extendido-recursivo
+   (proc-nombres (list-of symbol?))
+   (lista-ids (list-of list?))
+   (proc-cuerpos (list-of expression?))
+   (amb ambiente?)))
 
 ; ============================================================
-; FUNCIONES DE AMBIENTE
+; PROCEDIMIENTOS
 ; ============================================================
 
-; ambiente-vacio: -> ambiente
-; Retorna el ambiente base sin variables.
-(define ambiente-vacio
-  (lambda ()
-    (vacio)))
+; datatype para representar cerraduras
 
-; extender-ambiente: (list-of symbol?) (list-of valor) ambiente -> ambiente
-; Crea un nuevo marco con las variables ids y valores vals
-; encadenado al ambiente anterior amb.
-(define extender-ambiente
-  (lambda (ids vals amb)
-    (extendido ids vals amb)))
+(define-datatype procVal procVal?
 
-; buscar-variable: symbol ambiente -> valor
-; Recorre la cadena de marcos buscando el símbolo id.
-; Si lo encuentra retorna su valor; si llega a vacio, error.
-(define buscar-variable
-  (lambda (id amb)
-    (cases ambiente amb
-      (vacio ()
-        "Error, la variable no existe")
-      (extendido (ids vals resto)
-        (let buscar-en-marco ((ids-restantes ids)
-                              (vals-restantes vals))
-          (cond
-            ; llegamos al final del marco sin encontrarla → subir al padre
-            ((null? ids-restantes)
-             (buscar-variable id resto))
-            ; la encontramos → retornar su valor
-            ((eqv? (car ids-restantes) id)
-             (car vals-restantes))
-            ; no es esta → seguir en el mismo marco
-            (else
-             (buscar-en-marco (cdr ids-restantes)
-                              (cdr vals-restantes)))))))))
+  (cerradura
+   (lista-ID (list-of symbol?))
+   (exp expression?)
+   (amb ambiente?)))
+
+; ============================================================
+; FUNCIÓN AUXILIAR
+; ============================================================
+
+; determina si un valor es válido dentro del interpretador
+
+(define scheme-value?
+
+  (lambda (v)
+    #t))
 
 ; ============================================================
 ; AMBIENTE INICIAL
 ; ============================================================
 
-; ambiente-init: ambiente
-; Ambiente base con las 5 variables del enunciado.
-(define ambiente-init
-  (extender-ambiente
-    '(@a @b @c @d @e)
-    '(1   2   3  "hola" "FLP")
-    (ambiente-vacio)))
+; ambiente base solicitado en el taller
+
+(define ambiente-inicial
+
+  (extendido
+   '(@a @b @c @d @e)
+   '(1 2 3 "hola" "FLP")
+   (vacio)))
 
 ; ============================================================
-; DATATYPE PROCVAL (CERRADURA)
+; BÚSQUEDA DE VARIABLES
 ; ============================================================
 
-; Un procVal representa un procedimiento como valor de primera clase.
-; Tiene 3 campos:
-;   lista-ID  → los parámetros formales del procedimiento
-;   exp       → el cuerpo (una expresion del AST)
-;   amb       → el ambiente donde fue declarado (para closures)
+; busca una variable dentro del ambiente
 
-(define (ambiente-o-ref? v)
-  (or (ambiente? v) (vector? v)))
+(define buscar-variable
 
-(define-datatype procVal procVal?
-  (cerradura
-    (lista-ID (list-of symbol?))
-    (exp expression?)
-    (amb ambiente-o-ref?)))
+  (lambda (id amb)
+
+    (cases ambiente amb
+
+      (vacio ()
+             "Error, la variable no existe")
+
+      (extendido (ids vals old-amb)
+
+                  (let ((pos (encontrar-posicion id ids)))
+
+                    (if pos
+                        (list-ref vals pos)
+                        (buscar-variable id old-amb))))
+
+      (extendido-recursivo
+       (proc-nombres lista-ids proc-cuerpos old-amb)
+
+       (let ((pos (encontrar-posicion id proc-nombres)))
+
+         (if pos
+
+             (cerradura
+              (list-ref lista-ids pos)
+              (list-ref proc-cuerpos pos)
+              amb)
+
+             (buscar-variable id old-amb)))))))
 
 ; ============================================================
-; EVALUADOR
+; ENCONTRAR POSICIÓN
 ; ============================================================
 
-; evaluar-programa: programa -> valor
-; Punto de entrada principal. Extrae la expresion del programa
-; y la evalua en el ambiente inicial.
-(define evaluar-programa
-  (lambda (pgm)
-    (cases program pgm
-      (un-programa (exp)
-        (evaluar-expresion exp ambiente-init)))))
+; retorna la posición de un elemento dentro de una lista
 
-; evaluar-expresion: expresion ambiente -> valor
-; Nucleo del interprete. Despacha segun el tipo de nodo del AST.
+(define encontrar-posicion
+
+  (lambda (elem lista)
+
+    (let loop ((lista lista)
+               (indice 0))
+
+      (cond
+
+        [(null? lista)
+         #f]
+
+        [(equal? elem (car lista))
+         indice]
+
+        [else
+         (loop (cdr lista) (+ indice 1))]))))
+
+; ============================================================
+; VALOR VERDAD
+; ============================================================
+
+; determina si un valor es verdadero o falso
+
+(define valor-verdad?
+
+  (lambda (valor)
+
+    (if (equal? valor 0)
+        #f
+        #t)))
+
+; ============================================================
+; EVALUADOR PRINCIPAL
+; ============================================================
+
+; evalúa expresiones del lenguaje
+
 (define evaluar-expresion
+
   (lambda (exp amb)
+
     (cases expression exp
 
-      ; ----------------------------------------------------------
+      ; ======================================================
       ; LITERALES
-      ; ----------------------------------------------------------
+      ; ======================================================
 
-      ; numero-lit: retorna el numero directamente
-      (numero-lit (num) num)
+      (numero-lit (num)
+                   num)
 
-      ; texto-lit: retorna el string directamente
-      (texto-lit (txt) txt)
+      (texto-lit (txt)
+                  txt)
 
-      ; var-exp: busca el identificador en el ambiente
+      ; ======================================================
+      ; VARIABLES
+      ; ======================================================
+
       (var-exp (id)
-        (buscar-variable id amb))
+               (buscar-variable id amb))
 
-      ; ----------------------------------------------------------
+      ; ======================================================
       ; PRIMITIVAS BINARIAS
-      ; ----------------------------------------------------------
+      ; ======================================================
 
-      ; primapp-bin-exp: evalua ambos operandos y aplica la primitiva
       (primapp-bin-exp (exp1 prim exp2)
-        (let ((val1 (evaluar-expresion exp1 amb))
-              (val2 (evaluar-expresion exp2 amb)))
-          (aplicar-primitiva-bin prim val1 val2)))
 
-      ; ----------------------------------------------------------
+                       (evaluar-primitiva-binaria
+                        prim
+                        (evaluar-expresion exp1 amb)
+                        (evaluar-expresion exp2 amb)))
+
+      ; ======================================================
       ; PRIMITIVAS UNARIAS
-      ; ----------------------------------------------------------
+      ; ======================================================
 
-      ; primapp-un-exp: evalua el operando y aplica la primitiva
       (primapp-un-exp (prim exp1)
-        (let ((val (evaluar-expresion exp1 amb)))
-          (aplicar-primitiva-un prim val)))
 
-      ; ----------------------------------------------------------
-      ; CONDICIONAL
-      ; ----------------------------------------------------------
+                      (evaluar-primitiva-unaria
+                       prim
+                       (evaluar-expresion exp1 amb)))
 
-      ; condicional-exp: evalua test, si es verdadero evalua true-exp,
-      ; de lo contrario evalua false-exp
+      ; ======================================================
+      ; CONDICIONALES
+      ; ======================================================
+
       (condicional-exp (test-exp true-exp false-exp)
-        (if (valor-verdad? (evaluar-expresion test-exp amb))
-            (evaluar-expresion true-exp amb)
-            (evaluar-expresion false-exp amb)))
 
-      ; ----------------------------------------------------------
+                       (if (valor-verdad?
+                            (evaluar-expresion test-exp amb))
+
+                           (evaluar-expresion true-exp amb)
+
+                           (evaluar-expresion false-exp amb)))
+
+      ; ======================================================
       ; VARIABLES LOCALES
-      ; ----------------------------------------------------------
+      ; ======================================================
 
-      ; variableLocal-exp: evalua cada expresion de inicializacion,
-      ; extiende el ambiente con los nuevos enlaces y evalua el cuerpo
       (variableLocal-exp (ids exps cuerpo)
-        (let ((vals (map (lambda (e) (evaluar-expresion e amb)) exps)))
-          (evaluar-expresion cuerpo
-                             (extender-ambiente ids vals amb))))
 
-      ; ----------------------------------------------------------
+                         (let ((vals
+                                (map
+                                 (lambda (exp)
+                                   (evaluar-expresion exp amb))
+                                 exps)))
+
+                           (evaluar-expresion
+                            cuerpo
+                            (extendido ids vals amb))))
+
+      ; ======================================================
       ; PROCEDIMIENTOS
-      ; ----------------------------------------------------------
+      ; ======================================================
 
-      ; procedimiento-exp: construye y retorna una cerradura,
-      ; capturando el ambiente actual
       (procedimiento-exp (ids cuerpo)
-        (cerradura ids cuerpo amb))
 
-      ; ----------------------------------------------------------
-      ; APLICACION DE PROCEDIMIENTO
-      ; ----------------------------------------------------------
+                         (cerradura ids cuerpo amb))
 
-      ; app-exp: evalua el procedimiento y los argumentos,
-      ; luego aplica la cerradura
-      (app-exp (exp-proc exps-args)
-        (let ((proc (evaluar-expresion exp-proc amb))
-              (args (map (lambda (e) (evaluar-expresion e amb)) exps-args)))
-          (aplicar-cerradura proc args)))
+      ; ======================================================
+      ; APLICACIÓN DE PROCEDIMIENTOS
+      ; ======================================================
 
-      ; ----------------------------------------------------------
-      ; RECURSION
-      ; ----------------------------------------------------------
+      (app-exp (rator rands)
 
-      ; recursivo-exp: construye un ambiente recursivo donde cada
-      ; procedimiento puede verse a si mismo y a los demas,
-      ; luego evalua el cuerpo en ese ambiente
-      (recursivo-exp (ids params exps cuerpo)
-        (evaluar-expresion cuerpo
-                           (extender-ambiente-recursivo ids params exps amb)))
+               (let ((proc (evaluar-expresion rator amb))
+                     (args
+                      (map
+                       (lambda (exp)
+                         (evaluar-expresion exp amb))
+                       rands)))
 
-    )))
+                 (aplicar-procedimiento proc args)))
+
+      ; ======================================================
+      ; RECURSIÓN
+      ; ======================================================
+
+      (recursivo-exp
+       (proc-nombres lista-ids proc-cuerpos cuerpo)
+
+       (evaluar-expresion
+        cuerpo
+
+        (extendido-recursivo
+         proc-nombres
+         lista-ids
+         proc-cuerpos
+         amb))))))
 
 ; ============================================================
-; APLICAR CERRADURA
+; APLICAR PROCEDIMIENTO
 ; ============================================================
 
-; aplicar-cerradura: procVal (list-of valor) -> valor
-; Extiende el ambiente de la cerradura con los argumentos
-; y evalua el cuerpo en ese nuevo ambiente.
-(define aplicar-cerradura
+; aplica una cerradura con sus argumentos
+
+(define aplicar-procedimiento
+
   (lambda (proc args)
+
     (cases procVal proc
-      (cerradura (ids cuerpo amb-declaracion)
-        (let ((amb-real (if (vector? amb-declaracion)
-                            (vector-ref amb-declaracion 0)
-                            amb-declaracion)))
-        (evaluar-expresion cuerpo
-                             (extender-ambiente ids args amb-real)))))))
 
-; ============================================================
-; VALOR-VERDAD?
-; ============================================================
+      (cerradura (ids cuerpo amb)
 
-; valor-verdad?: valor -> boolean
-; En este lenguaje 0 es falso, cualquier otro valor es verdadero.
-(define valor-verdad?
-  (lambda (val)
-    (not (equal? val 0))))
+                  (evaluar-expresion
+                   cuerpo
 
-; ============================================================
-; AMBIENTE RECURSIVO
-; ============================================================
-
-; extender-ambiente-recursivo: ids params exps ambiente -> ambiente
-; Construye cerraduras para cada procedimiento recursivo y las
-; enlaza en un nuevo ambiente donde todas se ven entre si.
-; El truco: todas las cerraduras apuntan al mismo ambiente extendido,
-; que se construye de forma diferida con letrec.
-(define extender-ambiente-recursivo
-  (lambda (ids params exps amb)
-    (let* ((amb-ref (vector #f))
-           (amb-rec
-             (extender-ambiente
-               ids
-               (map (lambda (ps cuerpo)
-                      (cerradura ps cuerpo amb-ref))
-                    params
-                    exps)
-               amb)))
-      (vector-set! amb-ref 0 amb-rec)
-      amb-rec)))
+                   (extendido
+                    ids
+                    args
+                    amb))))))
 
 ; ============================================================
 ; PRIMITIVAS BINARIAS
 ; ============================================================
 
-; aplicar-primitiva-bin: primitive-bin valor valor -> valor
-; Despacha segun el tipo de primitiva binaria y aplica
-; la operacion correspondiente sobre val1 y val2.
-(define aplicar-primitiva-bin
-  (lambda (prim val1 val2)
+; evalúa primitivas binarias
+
+(define evaluar-primitiva-binaria
+
+  (lambda (prim arg1 arg2)
+
     (cases primitive-bin prim
 
-      ; aritmeticas
-      (primitiva-suma  () (+ val1 val2))
-      (primitiva-resta () (- val1 val2))
-      (primitiva-multi () (* val1 val2))
-      (primitiva-div   () (/ val1 val2))
+      (primitiva-suma ()
+                       (+ arg1 arg2))
 
-      ; strings
-      ; concat: ambos operandos deben ser strings
+      (primitiva-resta ()
+                        (- arg1 arg2))
+
+      (primitiva-multi ()
+                        (* arg1 arg2))
+
+      (primitiva-div ()
+                      (/ arg1 arg2))
+
       (primitiva-concat ()
-        (string-append val1 val2))
+                         (string-append arg1 arg2))
 
-      ; comparadores numericos → retornan 1 (verdadero) o 0 (falso)
-      (primitiva-mayor       () (if (> val1 val2)  1 0))
-      (primitiva-menor       () (if (< val1 val2)  1 0))
-      (primitiva-mayor-igual () (if (>= val1 val2) 1 0))
-      (primitiva-menor-igual () (if (<= val1 val2) 1 0))
-      (primitiva-diferente   () (if (not (equal? val1 val2)) 1 0))
-      (primitiva-igual       () (if (equal? val1 val2) 1 0))
-    )))
+      (primitiva-mayor ()
+                        (if (> arg1 arg2) 1 0))
+
+      (primitiva-menor ()
+                        (if (< arg1 arg2) 1 0))
+
+      (primitiva-mayor-igual ()
+                              (if (>= arg1 arg2) 1 0))
+
+      (primitiva-menor-igual ()
+                              (if (<= arg1 arg2) 1 0))
+
+      (primitiva-diferente ()
+                             (if (not (equal? arg1 arg2)) 1 0))
+
+      (primitiva-comparador-igual ()
+                              (if (equal? arg1 arg2) 1 0)))))
 
 ; ============================================================
 ; PRIMITIVAS UNARIAS
 ; ============================================================
 
-; aplicar-primitiva-un: primitive-un valor -> valor
-; Despacha segun el tipo de primitiva unaria y aplica
-; la operacion correspondiente sobre val.
-(define aplicar-primitiva-un
-  (lambda (prim val)
+; evalúa primitivas unarias
+
+(define evaluar-primitiva-unaria
+
+  (lambda (prim arg)
+
     (cases primitive-un prim
 
-      ; longitud: funciona sobre strings y listas
       (primitiva-longitud ()
-        (cond
-          ((string? val) (string-length val))
-          ((list? val)   (length val))
-          (else "Error de tipo: se esperaba un texto o lista en longitud()")))
+                           (string-length arg))
 
-      ; add1/sub1: incremento y decremento
-      (primitiva-add1 () (+ val 1))
-      (primitiva-sub1 () (- val 1))
+      (primitiva-add1 ()
+                        (+ arg 1))
 
-      ; neg: negacion booleana → 0 si verdadero, 1 si falso
+      (primitiva-sub1 ()
+                        (- arg 1))
+
       (primitiva-neg ()
-        (if (valor-verdad? val) 0 1))
+                      (if (valor-verdad? arg) 0 1))
 
-      ; piso: parte entera de un decimal
       (primitiva-piso ()
-        (floor val))
-    )))
+                       (floor arg)))))
 
 ; ============================================================
-; INTERPRETE
+; EVALUAR PROGRAMA
 ; ============================================================
 
-; interprete: string -> valor
-; Funcion de entrada: recibe codigo como string,
-; lo parsea y lo evalua.
-(define interprete
-  (lambda (codigo)
-    (evaluar-programa (scan&parse codigo))))
+; evalúa un programa completo
 
-; Alias para mantener compatibilidad con llamadas a interpretador en los tests por simple convención propia, me suena mejor)
-(define interpretador interprete)
+(define evaluar-programa
 
-(provide (all-defined-out))
+  (lambda (pgm)
+
+    (cases program pgm
+
+      (un-programa (exp)
+
+                   (evaluar-expresion
+                    exp
+                    ambiente-inicial)))))
 
 ; ============================================================
-; EJERCICIOS FINALES DEL TALLER (COMENTADOS)
+; INTERFAZ
 ; ============================================================
-;
-; 9a) sumarDigitos
-; (recursivo (@sumarDigitos(@n)=
-;    Si (@n < 10) {
-;      @n
-;    } sino {
-;      ((@n ~ (piso((@n / 10)) * 10)) + evaluar @sumarDigitos(piso((@n / 10))) finEval)
-;    }
-;  ;) { evaluar @sumarDigitos(147) finEval })
-;
-; 9b) factorial
-; (recursivo (@fact(@n)=
-;    Si (@n <= 1) {
-;      1
-;    } sino {
-;      (@n * evaluar @fact((@n ~ 1)) finEval)
-;    }
-;  ;) { evaluar @fact(5) finEval })
-;
-; (recursivo (@fact(@n)=
-;    Si (@n <= 1) {
-;      1
-;    } sino {
-;      (@n * evaluar @fact((@n ~ 1)) finEval)
-;    }
-;  ;) { evaluar @fact(10) finEval })
-;
-; 9c) potencia recursiva
-; (recursivo (@potencia(@base,@exp)=
-;    Si (@exp <= 0) {
-;      1
-;    } sino {
-;      (@base * evaluar @potencia(@base,(@exp ~ 1)) finEval)
-;    }
-;  ;) { evaluar @potencia(4,2) finEval })
-;
-; 9d) suma de rango
-; (recursivo (@sumaRango(@a,@b)=
-;    Si (@a == @b) {
-;      @a
-;    } sino {
-;      (@a + evaluar @sumaRango((@a + 1),@b) finEval)
-;    }
-;  ;) { evaluar @sumaRango(2,5) finEval })
-;
-; 9e) decorador sin mensaje final
-; declarar (
-;   @integrantes = procedimiento () { "Manuela_Steven_Andres" };
-;   @saludar = procedimiento (@proc) {
-;     procedimiento () { ("Hola:" concat evaluar @proc () finEval) }
-;   };
-; ) {
-;   declarar (
-;     @decorate = evaluar @saludar (@integrantes) finEval;
-;   ) {
-;     evaluar @decorate () finEval
-;   }
-; }
-;
-; 9f) decorador con mensaje final
-; declarar (
-;   @integrantes = procedimiento () { "Manuela_Steven_Andres" };
-;   @saludar = procedimiento (@proc) {
-;     procedimiento (@mensaje) {
-;       (("Hola:" concat evaluar @proc () finEval) concat @mensaje)
-;     }
-;   };
-; ) {
-;   declarar (
-;     @decorate = evaluar @saludar (@integrantes) finEval;
-;   ) {
-;     evaluar @decorate ("_ProfesoresFLP") finEval
-;   }
-; }
+
+; ejecuta el scanner, parser y evaluador
+
+(define interpretar
+
+  (lambda (texto)
+
+    (evaluar-programa
+     (scan&parse texto))))
