@@ -489,3 +489,76 @@
                exps)
           amb)))
       amb-rec)))
+
+; ============================================================
+; PRIMITIVAS BINARIAS
+; ============================================================
+
+; aplicar-primitiva-bin: primitive-bin valor valor -> valor
+; Despacha segun el tipo de primitiva binaria y aplica
+; la operacion correspondiente sobre val1 y val2.
+(define aplicar-primitiva-bin
+  (lambda (prim val1 val2)
+    (cases primitive-bin prim
+
+      ; aritmeticas
+      (primitiva-suma  () (+ val1 val2))
+      (primitiva-resta () (- val1 val2))
+      (primitiva-multi () (* val1 val2))
+      (primitiva-div   () (/ val1 val2))
+
+      ; strings
+      ; concat: ambos operandos deben ser strings
+      (primitiva-concat ()
+        (string-append val1 val2))
+
+      ; comparadores numericos → retornan 1 (verdadero) o 0 (falso)
+      (primitiva-mayor       () (if (> val1 val2)  1 0))
+      (primitiva-menor       () (if (< val1 val2)  1 0))
+      (primitiva-mayor-igual () (if (>= val1 val2) 1 0))
+      (primitiva-menor-igual () (if (<= val1 val2) 1 0))
+      (primitiva-diferente   () (if (not (equal? val1 val2)) 1 0))
+      (primitiva-igual       () (if (equal? val1 val2) 1 0))
+    )))
+
+; ============================================================
+; PRIMITIVAS UNARIAS
+; ============================================================
+
+; aplicar-primitiva-un: primitive-un valor -> valor
+; Despacha segun el tipo de primitiva unaria y aplica
+; la operacion correspondiente sobre val.
+(define aplicar-primitiva-un
+  (lambda (prim val)
+    (cases primitive-un prim
+
+      ; longitud: funciona sobre strings y listas
+      (primitiva-longitud ()
+        (cond
+          ((string? val) (string-length val))
+          ((list? val)   (length val))
+          (else (error 'longitud "Se esperaba string o lista, se recibio: ~s" val))))
+
+      ; add1/sub1: incremento y decremento
+      (primitiva-add1 () (+ val 1))
+      (primitiva-sub1 () (- val 1))
+
+      ; neg: negacion booleana → 0 si verdadero, 1 si falso
+      (primitiva-neg ()
+        (if (valor-verdad? val) 0 1))
+
+      ; piso: parte entera de un decimal
+      (primitiva-piso ()
+        (floor val))
+    )))
+
+; ============================================================
+; INTERPRETE
+; ============================================================
+
+; interprete: string -> valor
+; Funcion de entrada: recibe codigo como string,
+; lo parsea y lo evalua.
+(define interprete
+  (lambda (codigo)
+    (evaluar-programa (scan&parse codigo))))
