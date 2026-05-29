@@ -336,3 +336,156 @@
     (lista-ID (list-of symbol?))
     (exp expresion?)
     (amb ambiente?)))
+
+; ============================================================
+; EVALUADOR
+; ============================================================
+
+; evaluar-programa: programa -> valor
+; Punto de entrada principal. Extrae la expresion del programa
+; y la evalua en el ambiente inicial.
+(define evaluar-programa
+  (lambda (pgm)
+    (cases program pgm
+      (un-programa (exp)
+        (evaluar-expresion exp ambiente-init)))))
+
+; evaluar-expresion: expresion ambiente -> valor
+; Nucleo del interprete. Despacha segun el tipo de nodo del AST.
+(define evaluar-expresion
+  (lambda (exp amb)
+    (cases expression exp
+
+      ; ----------------------------------------------------------
+      ; LITERALES
+      ; ----------------------------------------------------------
+
+      ; numero-lit: retorna el numero directamente
+      (numero-lit (num) num)
+
+      ; texto-lit: retorna el string directamente
+      (texto-lit (txt) txt)
+
+      ; var-exp: busca el identificador en el ambiente
+      (var-exp (id)
+        (buscar-variable id amb))
+
+      ; ----------------------------------------------------------
+      ; PRIMITIVAS BINARIAS
+      ; ----------------------------------------------------------
+
+      ; primapp-bin-exp: evalua ambos operandos y aplica la primitiva
+      (primapp-bin-exp (exp1 prim exp2)
+        (let ((val1 (evaluar-expresion exp1 amb))
+              (val2 (evaluar-expresion exp2 amb)))
+          (aplicar-primitiva-bin prim val1 val2)))
+
+      ; ----------------------------------------------------------
+      ; PRIMITIVAS UNARIAS
+      ; ----------------------------------------------------------
+
+      ; primapp-un-exp: evalua el operando y aplica la primitiva
+      (primapp-un-exp (prim exp1)
+        (let ((val (evaluar-expresion exp1 amb)))
+          (aplicar-primitiva-un prim val)))
+
+      ; ----------------------------------------------------------
+      ; CONDICIONAL
+      ; ----------------------------------------------------------
+
+      ; condicional-exp: evalua test, si es verdadero evalua true-exp,
+      ; de lo contrario evalua false-exp
+      (condicional-exp (test-exp true-exp false-exp)
+        (if (valor-verdad? (evaluar-expresion test-exp amb))
+            (evaluar-expresion true-exp amb)
+            (evaluar-expresion false-exp amb)))
+
+      ; ----------------------------------------------------------
+      ; VARIABLES LOCALES
+      ; ----------------------------------------------------------
+
+      ; variableLocal-exp: evalua cada expresion de inicializacion,
+      ; extiende el ambiente con los nuevos enlaces y evalua el cuerpo
+      (variableLocal-exp (ids exps cuerpo)
+        (let ((vals (map (lambda (e) (evaluar-expresion e amb)) exps)))
+          (evaluar-expresion cuerpo
+                             (extender-ambiente ids vals amb))))
+
+      ; ----------------------------------------------------------
+      ; PROCEDIMIENTOS
+      ; ----------------------------------------------------------
+
+      ; procedimiento-exp: construye y retorna una cerradura,
+      ; capturando el ambiente actual
+      (procedimiento-exp (ids cuerpo)
+        (cerradura ids cuerpo amb))
+
+      ; ----------------------------------------------------------
+      ; APLICACION DE PROCEDIMIENTO
+      ; ----------------------------------------------------------
+
+      ; app-exp: evalua el procedimiento y los argumentos,
+      ; luego aplica la cerradura
+      (app-exp (exp-proc exps-args)
+        (let ((proc (evaluar-expresion exp-proc amb))
+              (args (map (lambda (e) (evaluar-expresion e amb)) exps-args)))
+          (aplicar-cerradura proc args)))
+
+      ; ----------------------------------------------------------
+      ; RECURSION
+      ; ----------------------------------------------------------
+
+      ; recursivo-exp: construye un ambiente recursivo donde cada
+      ; procedimiento puede verse a si mismo y a los demas,
+      ; luego evalua el cuerpo en ese ambiente
+      (recursivo-exp (ids params exps cuerpo)
+        (evaluar-expresion cuerpo
+                           (extender-ambiente-recursivo ids params exps amb)))
+
+    )))
+
+; ============================================================
+; APLICAR CERRADURA
+; ============================================================
+
+; aplicar-cerradura: procVal (list-of valor) -> valor
+; Extiende el ambiente de la cerradura con los argumentos
+; y evalua el cuerpo en ese nuevo ambiente.
+(define aplicar-cerradura
+  (lambda (proc args)
+    (cases procVal proc
+      (cerradura (ids cuerpo amb-declaracion)
+        (evaluar-expresion cuerpo
+                           (extender-ambiente ids args amb-declaracion))))))
+
+; ============================================================
+; VALOR-VERDAD?
+; ============================================================
+
+; valor-verdad?: valor -> boolean
+; En este lenguaje 0 es falso, cualquier otro valor es verdadero.
+(define valor-verdad?
+  (lambda (val)
+    (not (equal? val 0))))
+
+; ============================================================
+; AMBIENTE RECURSIVO
+; ============================================================
+
+; extender-ambiente-recursivo: ids params exps ambiente -> ambiente
+; Construye cerraduras para cada procedimiento recursivo y las
+; enlaza en un nuevo ambiente donde todas se ven entre si.
+; El truco: todas las cerraduras apuntan al mismo ambiente extendido,
+; que se construye de forma diferida con letrec.
+(define extender-ambiente-recursivo
+  (lambda (ids params exps amb)
+    (letrec
+      ((amb-rec
+        (extender-ambiente
+          ids
+          (map (lambda (ps cuerpo)
+                 (cerradura ps cuerpo amb-rec))
+               params
+               exps)
+          amb)))
+      amb-rec)))
