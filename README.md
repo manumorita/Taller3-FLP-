@@ -72,6 +72,22 @@ Abre `interpretador.rkt` en DrRacket y usa la función `interprete` o su alias `
 ; → 5
 ```
 
+## Pruebas automáticas
+
+Se incluye una suite de pruebas que ejecuta los ejemplos del enunciado y verifica resultados.
+Ejecutar desde la raíz del proyecto:
+
+```sh
+racket test.rkt
+```
+
+Los resultados y errores se muestran por consola.
+
+## Notas sobre la implementación actual
+
+- Token `texto`: las cadenas deben aparecer entre comillas y pueden iniciar con letra o con `_`.
+- Dentro del texto se permiten letras, dígitos, `_` y `:` (esto permite literales como "Hola:").
+
 ---
 
 ## Ejercicios del punto 9

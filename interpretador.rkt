@@ -52,8 +52,13 @@
       number)
 
     ; textos
+    ; textos: debe iniciar con letra o '_' seguido de letras, dígitos o '_'
     (texto
       (letter (arbno (or letter digit "_" ":")))
+      string)
+
+    (texto
+      ("_" (arbno (or letter digit "_" ":")))
       string)
 ))
 
@@ -624,3 +629,86 @@
 
     (evaluar-programa
      (scan&parse texto))))
+
+; Para mayor comodidad, se definen sinónimos para la función interpretar (gusto personal)
+(define interprete interpretar)
+(define interpretador interpretar)
+(provide (all-defined-out))
+
+; ============================================================
+; EJERCICIOS FINALES DEL TALLER (COMENTADOS)
+; ============================================================
+;
+; 9a) sumarDigitos
+; (interpretar "recursivo (@sumarDigitos(@n)=
+;    Si (@n < 10) {
+;      @n
+;    } sino {
+;      ((@n ~ (piso((@n / 10)) * 10)) + evaluar @sumarDigitos(piso((@n / 10))) finEval)
+;    }
+;  ;) { evaluar @sumarDigitos(147) finEval }")
+;
+; 9b) factorial
+; (interpretar "recursivo (@fact(@n)=
+;    Si (@n <= 1) {
+;      1
+;    } sino {
+;      (@n * evaluar @fact((@n ~ 1)) finEval)
+;    }
+;  ;) { evaluar @fact(5) finEval }")
+;
+; (interpretar "recursivo (@fact(@n)=
+;    Si (@n <= 1) {
+;      1
+;    } sino {
+;      (@n * evaluar @fact((@n ~ 1)) finEval)
+;    }
+;  ;) { evaluar @fact(10) finEval }")
+;
+; 9c) potencia recursiva
+; (interpretar "recursivo (@potencia(@base,@exp)=
+;    Si (@exp <= 0) {
+;      1
+;    } sino {
+;      (@base * evaluar @potencia(@base,(@exp ~ 1)) finEval)
+;    }
+;  ;) { evaluar @potencia(4,2) finEval }")
+;
+; 9d) suma de rango
+; (interpretar "recursivo (@sumaRango(@a,@b)=
+;    Si (@a == @b) {
+;      @a
+;    } sino {
+;      (@a + evaluar @sumaRango((@a + 1),@b) finEval)
+;    }
+;  ;) { evaluar @sumaRango(2,5) finEval }")
+;
+; 9e) decorador sin mensaje final
+; (interpretar "declarar (
+;   @integrantes = procedimiento () { \"Manuela_Steven_Andres\" };
+;   @saludar = procedimiento (@proc) {
+;     procedimiento () { (\"Hola:\" concat evaluar @proc () finEval) }
+;   };
+; ) {
+;   declarar (
+;     @decorate = evaluar @saludar (@integrantes) finEval;
+;   ) {
+;     evaluar @decorate () finEval
+;   }
+; }")
+;
+; 9f) decorador con mensaje final
+; (interpretar "declarar (
+;   @integrantes = procedimiento () { \"Manuela_Steven_Andres\" };
+;   @saludar = procedimiento (@proc) {
+;     procedimiento (@mensaje) {
+;       ((\"Hola:\" concat evaluar @proc () finEval) concat @mensaje)
+;     }
+;   };
+; ) {
+;   declarar (
+;     @decorate = evaluar @saludar (@integrantes) finEval;
+;   ) {
+;     evaluar @decorate (\"ProfesoresFLP\") finEval
+;   }
+; }")
